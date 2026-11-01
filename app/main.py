@@ -13,6 +13,9 @@ from app import models  # noqa: F401  — ensures all mappers are registered
 from app.api.admin.users import router as admin_users_router
 from app.api.errors import register_error_handlers
 
+from app.api.auth.html import router as auth_html_router
+from app.api.auth.router import router as auth_router
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -35,6 +38,8 @@ def create_app() -> FastAPI:
     )
     
     register_error_handlers(app)
+    app.include_router(auth_router)
+    app.include_router(auth_html_router)
     app.include_router(admin_users_router)
 
     @app.get("/healthz", tags=["meta"])

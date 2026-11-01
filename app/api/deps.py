@@ -5,12 +5,14 @@ from __future__ import annotations
 from typing import Callable
 
 import jwt
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Request
 from sqlalchemy.orm import Session
+
+from app.services import session_service
 
 from app.api.exceptions import forbidden, unauthorized
 from app.db import get_db
-from app.models import User
+from app.models import User, UserSession
 from app.security.jwt_signer import get_jwt_signer
 
 
@@ -56,6 +58,23 @@ def require_scope(required: str) -> Callable[[dict, Session], dict]:
         return claims
 
     return _checker
+
+def get_optional_session(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> UserSession | None:
+    """Return the active session for this request, or None.
+
+    Reads the cookie name from settings so there's a single source of truth
+    for the cookie name across login, logout, and this dependency.
+    """
+    from app.config import get_settings
+
+    cookie_name = get_settings().session_cookie_name
+    raw_token = request.cookies.get(cookie_name)
+    if not raw_token:
+        return None
+    return session_service.get_active_session_by_token(db, raw_token)
 
 
 # Ready-made dependency for the admin surface.

@@ -6,11 +6,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import ForeignKey, String
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, CreatedAtMixin
+
+from app.db import UTCDateTime
 
 if TYPE_CHECKING:
     from app.models.client import Client
@@ -34,8 +36,8 @@ class AuthorizationCode(Base, CreatedAtMixin):
     code_challenge_method: Mapped[str] = mapped_column(String(16), nullable=False, default="S256")
     nonce: Mapped[str | None] = mapped_column(String(128), nullable=True)
     state: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
     client: Mapped[Client] = relationship()
     user: Mapped[User] = relationship()

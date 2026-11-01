@@ -14,6 +14,7 @@ import pytest as _pytest
 
 from app.models import Realm, Scope, User
 from app.services import group_service, realm_service, scope_service, user_service
+from app.services import rate_limiter as _rate_limiter
 
 
 @pytest.fixture
@@ -64,4 +65,10 @@ def admin_user(db_session, realm, admin_scope) -> User:
         db_session, realm_id=realm.id, username="admin", password="admin-pass-123"
     )
     user_service.grant_scope_to_user(db_session, user_id=u.id, scope_id=admin_scope.id)
-    return u        
+    return u       
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    _rate_limiter.clear()
+    yield
+    _rate_limiter.clear() 

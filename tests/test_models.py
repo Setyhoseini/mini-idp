@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+
 from sqlalchemy.orm import Session
 
 from app.models import Client, Group, Realm, Scope, User, UserSession
@@ -92,6 +94,7 @@ def test_session_belongs_to_user(db_session: Session) -> None:
     session = UserSession(
         user_id=user.id,
         realm_id=realm.id,
+        token_hash=hashlib.sha256(b"test-token").hexdigest(),
         expires_at=now + timedelta(hours=1),
         last_activity_at=now,
     )

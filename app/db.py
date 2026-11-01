@@ -2,13 +2,49 @@
 
 from collections.abc import Generator
 
-from sqlalchemy import MetaData, create_engine
+from sqlalchemy import DateTime, MetaData, TypeDecorator, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_settings
 
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
+
+from datetime import datetime, timezone
+
+class UTCDateTime(TypeDecorator):
+    """A DateTime column that stores UTC and always returns aware UTC datetimes.
+
+    SQLite (and some other dialects) do not preserve timezone offsets: values
+    are written as naive strings and read back as naive datetimes. Without
+    this type, comparing `row.expires_at <= datetime.now(timezone.utc)` raises
+    `TypeError: can't compare offset-naive and offset-aware datetimes`.
+
+    This type normalizes on both sides:
+      - bind:   aware -> naive UTC (stored as TEXT)
+      - result: naive -> aware UTC (returned to application code)
+
+    Application code then always works with timezone-aware datetimes and never
+    needs to know which dialect produced the value.
+    """
+
+    impl = DateTime
+    cache_ok = True
+
+    def process_bind_param(self, value: datetime | None, dialect) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            # Discipline check: naive values are assumed to already be UTC.
+            return value
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+    def process_result_value(self, value: datetime | None, dialect) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
 # Deterministic constraint names — needed for clean migrations and clear
 # error messages. Follows SQLAlchemy's recommended convention.
