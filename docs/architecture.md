@@ -1,6 +1,6 @@
 # معماری سامانه — mini-idp
 
-نسخه: ۱.۰ (طراحی، پیش از پیاده‌سازی)
+نسخه: ۱.۱ (طراحی + یادداشت‌های پیاده‌سازی)
 نویسنده: [نام و نام خانوادگی، شماره دانشجویی]
 تاریخ: [تاریخ]
 
@@ -8,7 +8,7 @@
 
 ## چکیده
 
-‏mini-idp یک ارائه‌دهندهٔ هویت (Identity Provider) تک‌دامنه و سازگار با OIDC است که از صفر پیاده‌سازی می‌شود و کاربران، گروه‌ها، اسکوپ‌ها و کلاینت‌های OAuth2 را در یک realm مدیریت می‌کند. این سامانه احراز هویت مبتنی بر نشست مرورگری و مجوزدهی مبتنی بر اسکوپ را با جریان Authorization Code + PKCE ترکیب کرده و توکن‌های JWT با امضای RS256 صادر می‌کند. هدف طراحی، تفکیک صریح میان مدیریت (management plane) و اجرا (authentication/protocol plane)، و ارائهٔ یک واحد یکتای محاسبهٔ مجوز («اسکوپ مؤثر») است تا تغییر مجوزها در یک نقطه، در تمام سطوح سامانه بازتاب یابد.
+mini-idp یک ارائه‌دهندهٔ هویت (Identity Provider) تک‌دامنه و سازگار با OIDC است که از صفر پیاده‌سازی می‌شود و کاربران، گروه‌ها، اسکوپ‌ها و کلاینت‌های OAuth2 را در یک realm مدیریت می‌کند. این سامانه احراز هویت مبتنی بر نشست مرورگری و مجوزدهی مبتنی بر اسکوپ را با جریان Authorization Code + PKCE ترکیب کرده و توکن‌های JWT با امضای RS256 صادر می‌کند. هدف طراحی، تفکیک صریح میان مدیریت (management plane) و اجرا (authentication/protocol plane)، و ارائهٔ یک واحد یکتای محاسبهٔ مجوز («اسکوپ مؤثر») است تا تغییر مجوزها در یک نقطه، در تمام سطوح سامانه بازتاب یابد.
 
 ---
 
@@ -319,12 +319,12 @@ erDiagram
 }
 ```
 
-‏`issuer` باید دقیقاً با claim `iss` در توکن‌های صادرشده مطابق باشد؛ ناسازگاری این دو، منبع کلاسیک خطا در اعتبارسنجی توکن است.
+مقدار `issuer` باید دقیقاً با claim `iss` در توکن‌های صادرشده مطابق باشد؛ ناسازگاری این دو، منبع کلاسیک خطا در اعتبارسنجی توکن است.
 
 ### ۴.۵. محاسبه‌گر اسکوپ مؤثر
 
 ```text
-effective_scopes(user) = direct_scopes(user) ∪ ⋃_{g ∈ groups(user)} group_scopes(g)
+effective_scopes(user) = direct_scopes(user) ∪ ⋃ group_scopes(g) for g in groups(user)
 ```
 
 این تابع در Service Layer پیاده می‌شود و **تنها منبع حقیقت** برای مجوزدهی است. مصرف‌کنندگان آن:
@@ -342,39 +342,39 @@ effective_scopes(user) = direct_scopes(user) ∪ ⋃_{g ∈ groups(user)} group_
 
 ### ۵.۱. ورود و SSO
 
-```
-ClientA → GET /authorize?response_type=code&client_id=A&redirect_uri=...&scope=openid orders.read
-                &state=...&code_challenge=...&code_challenge_method=S256&nonce=...
-  IdP: بدون کوکی SID → 302 به /login?return_to=<encoded original /authorize URL>
-  کاربر فرم را ارسال می‌کند → POST /auth/login
-    → ایجاد نشست، ست‌کردن SID، 302 به return_to
-  IdP: با SID حاضر، رضایت (یا رد در صورت قبلی) → صدور code
-    → 302 به redirect_uri?code=...&state=...
-ClientA → POST /token (code + code_verifier)
-  IdP: اعتبارسنجی code، PKCE، redirect_uri، client، session
-    → صدور access_token (JWT RS256)، id_token، refresh_token
+```text
+ClientA -> GET /authorize?response_type=code&client_id=A&redirect_uri=...&scope=openid orders.read
+                 &state=...&code_challenge=...&code_challenge_method=S256&nonce=...
+  IdP: no SID cookie -> 302 to /login?return_to=<encoded original /authorize URL>
+  user submits form -> POST /auth/login
+    -> create session, set SID, 302 to return_to
+  IdP: with SID, render consent (or skip if previously granted) -> issue code
+    -> 302 to redirect_uri?code=...&state=...
+ClientA -> POST /token (code + code_verifier)
+  IdP: validate code, PKCE, redirect_uri, client, session
+    -> issue access_token (JWT RS256), id_token, refresh_token
 ```
 
 اثبات SSO: در همان مرورگر، `/authorize` برای ClientB فراخوانی می‌شود. به‌دلیل حضور کوکی `SID`، سامانه بدون ورود مجدد کد صادر می‌کند.
 
 ### ۵.۲. Refresh
 
-```
-Client → POST /token grant_type=refresh_token&refresh_token=...&client_id=...
-  IdP: اعتبارسنجی، بررسی revoked_at، چرخش refresh (توکن جدید، توکن قبلی revoked)
-       و بازخوانی اسکوپ‌های مؤثر
-    → access_token جدید با اسکوپ‌های جاری
+```text
+Client -> POST /token grant_type=refresh_token&refresh_token=...&client_id=...
+  IdP: validate, check revoked_at, rotate refresh (new token, old marked revoked),
+       re-read effective scopes
+    -> new access_token with current scopes
 ```
 
 از آنجا که access tokenها عمر کوتاه دارند و refresh اسکوپ‌های مؤثر را دوباره می‌خواند، لغو یک اسکوپ **حداکثر** پس از TTL access token در توکن‌های صادرشده اثر می‌کند. این پنجره در بخش ۷ به‌عنوان یک trade-off مستند شده است.
 
 ### ۵.۳. منبع محافظت‌شده
 
-```
-Resource → Bearer JWT → GET /jwks.json (cached)
-         → اعتبارسنجی امضا، iss، aud، exp، nbf
-         → بررسی اسکوپ لازم در claim `scope`
-         → 200 یا 403
+```text
+Resource -> Bearer JWT -> GET /jwks.json (cached)
+         -> verify signature, iss, aud, exp, nbf
+         -> check required scope in `scope` claim
+         -> 200 or 403
 ```
 
 ---
@@ -432,3 +432,45 @@ Resource → Bearer JWT → GET /jwks.json (cached)
 | تست | pytest | پوشش جریان‌های OIDC و حالت‌های خطا |
 
 توجیه تفصیلی هر کتابخانه، مطابق الزامات تمرین، در پیوست گزارش نهایی ارائه می‌شود.
+
+---
+
+## ۹. یادداشت‌های پیاده‌سازی
+
+این بخش، تصمیم‌های جزئی و انحرافات از طراحی را که در جریان پیاده‌سازی اتخاذ شده‌اند مستند می‌کند؛ هر بند به بخش مرتبط طراحی ارجاع می‌دهد تا «تطابق پیاده‌سازی با طراحی» قابل ارزیابی باشد.
+
+### ۹.۱. هدف کلید خارجی `client_id` در `authorization_code` و `refresh_token`
+
+در بخش ۳.۲، ستون `client_id` روی این دو جدول به‌عنوان کلید خارجی توصیف شد اما نوع دقیق ستون هدف مشخص نشد. در پیاده‌سازی، ستون `client_id` به `client.id` (کلید اصلی عددی) ارجاع می‌دهد، نه به `client.client_id` (شناسهٔ عمومی رشته‌ای OAuth2).
+
+**دلیل:** `client.id` کلید داخلی پایگاه‌داده و مناسب روابط ORM و رفتار آبشاری (cascade) است. `client.client_id` شناسهٔ عمومی و صرفاً برای جست‌وجو در سطح API استفاده می‌شود. جدا کردن «کلید مشترک داخلی» از «شناسهٔ عمومی» از پیچیدگی cascade و ایندکس‌گذاری می‌کاهد. نام ستون (`client_id`) بدون تغییر مانده تا با طراحی و با نام‌گذاری استاندارد OAuth2 هم‌خوان بماند.
+
+### ۹.۲. نام کلاس `UserSession` در برابر نام جدول `session`
+
+مدل SSO در بخش ۳.۲ با نام جدول `session` توصیف شد. در پیاده‌سازی، کلاس مدل `UserSession` نامیده شده در حالی که `__tablename__` برابر `session` مانده است.
+
+**دلیل:** `Session` نام کلاس استاندارد `sqlalchemy.orm` است که تقریباً در هر فایل (fixtures تست، سرویس‌ها، endpointها) وارد می‌شود. اگر مدل نیز `Session` نام داشت، تمام فایل‌ها به alias روی می‌آوردند (`from app.models.session import Session as UserSession`). تغییر نام کلاس مدل، این بار را یک‌بار برای همیشه حذف می‌کند و نام جدول در پایگاه‌داده دست‌نخورده می‌ماند.
+
+### ۹.۳. اجبار کلید خارجی در SQLite
+
+SQLite به‌صورت پیش‌فرض FKs را اجرا نمی‌کند؛ بدون `PRAGMA foreign_keys=ON`، رفتار `ondelete="CASCADE"` بی‌اثر می‌شود و «ابطال نشست → مرگ مشتقات» که در بخش ۶ به آن تکیه شده، نقض می‌شود. در `app/db.py` یک listener روی رویداد `connect` پیاده شده که برای اتصال‌های SQLite این pragma را فعال می‌کند. Postgres نیازی به این تنظیم ندارد و رفتار پیش‌فرض آن FKs را اجرا می‌کند؛ به همین دلیل listener فقط در مسیر SQLite عمل می‌کند.
+
+### ۹.۴. بارگذاری روابط M2M با `lazy="selectin"`
+
+روابط `User.groups`، `User.direct_scopes` و `Group.scopes` با `lazy="selectin"` پیکربندی شده‌اند تا N+1 در محاسبهٔ اسکوپ مؤثر و در پاسخ‌های مدیریتی از بین برود. این انتخاب، هزینهٔ دو کوئری اضافی در بازیدهای «سبک» را می‌پذیرد تا هزینهٔ N+1 در بازیدهای «سنگین» حذف شود. مسیرهای گرمی که به این روابط نیاز ندارند می‌توانند با `.options(noload(...))` از آن‌ها صرف‌نظر کنند.
+
+### ۹.۵. اشتقاق `kid`
+
+`kid` در هدر JWT با گرفتن ۱۶ کاراکتر اول SHA-256 از بایت‌های کلید عمومی محاسبه می‌شود. این روش، سادگی را بر تطابق کامل با RFC 7638 (JWK Thumbprint) ترجیح می‌دهد اما همان ویژگی حیاتی را حفظ می‌کند: برای یک کلید ثابت، `kid` در همهٔ اجراها یکسان است و با بازتولید کلید تغییر می‌کند. این ویژگی، چرخش بی‌وقفهٔ کلید در استقرار آینده را ممکن می‌سازد.
+
+### ۹.۶. پارامترهای هش رمز
+
+`argon2.PasswordHasher()` با پارامترهای پیش‌فرض کتابخانه استفاده می‌شود: `time_cost=3`، `memory_cost=64 MiB`، `parallelism=4`. این مقادیر با توصیه‌نامهٔ OWASP برای Argon2id (۲۰۲۴) هم‌خوان‌اند. برای مهاجرت به پارامترهای سخت‌گیرانه‌تر در آینده، تابع `needs_rehash` در `app/security/passwords.py` فراهم است تا در زمان ورود کاربر، هش قدیمی بازنویسی شود.
+
+### ۹.۷. ستون‌های JSON روی SQLite
+
+ستون‌های `redirect_uris`، `post_logout_redirect_uris`، `allowed_scopes` و `scopes` از نوع `sqlalchemy.dialects.sqlite.JSON` هستند. این انتخاب، در SQLite به TEXT با سریال‌سازی JSON نگاشت می‌شود و در Postgres به `JSONB` نگاشت می‌شود. برای مهاجرت کامل به Postgres، تغییر import به `sqlalchemy.JSON` کافی است.
+
+### ۹.۸. مقدار پیش‌فرض برای ستون‌های لیستی JSON
+
+ستون‌های JSON لیستی با `default=list` مقدار می‌گیرند تا `None` هرگز به‌جای آرایهٔ خالی وارد نشود. این انتخاب، هزینهٔ صفر دارد و از خطای type در سرویس‌های بالادستی (که انتظار iterable دارند) جلوگیری می‌کند.
