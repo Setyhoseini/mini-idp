@@ -20,5 +20,15 @@ pip install -r requirements.txt
 
 cp .env.example .env
 python scripts/generate_keys.py
+python scripts/bootstrap.py        # seeds realm, scopes, admin, demo; prints admin JWT
 
 uvicorn app.main:app --reload
+```
+
+Then:
+
+- Health:     <http://localhost:8000/healthz>
+- API docs:   <http://localhost:8000/docs>
+
+The bootstrap script is idempotent — safe to re-run. It prints an admin JWT
+with a 1-hour default TTL (set `BOOTSTRAP_ADMIN_TOKEN_TTL_SECONDS` to change).

@@ -64,6 +64,14 @@ def get_user(db: Session, user_id: int) -> User:
         raise UserNotFound(user_id)
     return user
 
+def get_user_by_username(db: Session, *, realm_id: int, username: str) -> User:
+    """Look up a user by their username within a realm."""
+    user = db.execute(
+        select(User).where(User.realm_id == realm_id, User.username == username)
+    ).scalar_one_or_none()
+    if user is None:
+        raise UserNotFound(username)
+    return user
 
 def list_users(db: Session, *, realm_id: int, limit: int = 100, offset: int = 0) -> list[User]:
     return list(
