@@ -32,3 +32,35 @@ Then:
 
 The bootstrap script is idempotent — safe to re-run. It prints an admin JWT
 with a 1-hour default TTL (set `BOOTSTRAP_ADMIN_TOKEN_TTL_SECONDS` to change).
+
+## Running
+
+Two terminals, both with `(.venv)` activated, from the project root.
+
+**Terminal 1 — Identity Provider (port 8000):**
+
+```bash
+uvicorn app.main:app --reload
+```
+
+**Terminal 2 — Demo Resource Server (port 8001):**
+
+```bash
+uvicorn resource_server.main:app --reload --port 8001
+```
+
+Then:
+
+- IdP health:       <http://localhost:8000/healthz>
+- IdP API docs:     <http://localhost:8000/docs>
+- RS health:        <http://localhost:8001/healthz>
+- RS API docs:      <http://localhost:8001/docs>
+
+## Demo
+
+With both servers running:
+
+```bash
+python scripts/demo_sso.py       # SSO + scope filtering at the IdP
+python scripts/demo_resource.py  # SSO + scope enforcement at the RS
+```
