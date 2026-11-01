@@ -10,6 +10,9 @@ from app.db import Base, engine
 
 from app import models  # noqa: F401  — ensures all mappers are registered
 
+from app.api.admin.users import router as admin_users_router
+from app.api.errors import register_error_handlers
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -30,6 +33,9 @@ def create_app() -> FastAPI:
         redoc_url=None,  # keep surface small; we only document via /docs
         lifespan=lifespan,
     )
+    
+    register_error_handlers(app)
+    app.include_router(admin_users_router)
 
     @app.get("/healthz", tags=["meta"])
     def healthz() -> dict:
