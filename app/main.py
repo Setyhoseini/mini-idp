@@ -15,6 +15,7 @@ from app.api.errors import register_error_handlers
 
 from app.api.auth.html import router as auth_html_router
 from app.api.auth.router import router as auth_router
+from app.api.oidc import router as oidc_router
 
 
 @asynccontextmanager
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(auth_html_router)
     app.include_router(admin_users_router)
+    app.include_router(oidc_router)
 
     @app.get("/healthz", tags=["meta"])
     def healthz() -> dict:

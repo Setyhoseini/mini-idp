@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 import pytest
+
+import base64
+import hashlib
+import secrets
+
+from fastapi.testclient import TestClient
+
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session as OrmSession, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app import models  # noqa: F401  — registers all models with Base.metadata
-from app.db import Base
+from app.db import Base, get_db
+from app.main import app as _app
 
 import pytest as _pytest
 
@@ -72,3 +80,21 @@ def _reset_rate_limiter():
     _rate_limiter.clear()
     yield
     _rate_limiter.clear() 
+    
+@pytest.fixture
+def client(db_session):
+    def _override():
+        yield db_session
+
+    _app.dependency_overrides[get_db] = _override
+    with TestClient(_app) as c:
+        yield c
+    _app.dependency_overrides.clear()
+
+
+def make_pkce_pair() -> tuple[str, str]:
+    """Return (code_verifier, code_challenge) per RFC 7636 S256."""
+    verifier = secrets.token_urlsafe(64)
+    digest = hashlib.sha256(verifier.encode()).digest()
+    challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+    return verifier, challenge
